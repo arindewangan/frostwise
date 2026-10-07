@@ -1,0 +1,7 @@
+{
+  "n_locations": 69,
+  "n_frost": 39,
+  "n_no_frost": 30,
+  "years": "2005-2024",
+  "source": "Open-Meteo archive API (ERA5)"
+}
