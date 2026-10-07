@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frostwise — know your frost dates, plant with confidence</title>
+<style>
+  :root { --bg:#0e1a12; --card:#16241b; --accent:#7ddf9a; --accent2:#ffd166; --text:#eef5ee; --muted:#9db3a4; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:56px 24px 32px; text-align:center; background: radial-gradient(60% 90% at 50% 0%, #1d3a26 0%, var(--bg) 70%); }
+  header h1 { font-size: clamp(2.2rem, 6vw, 4rem); margin:0 0 8px; letter-spacing:-0.02em; }
+  header h1 span { color:var(--accent); }
+  header p { color:var(--muted); max-width:640px; margin:0 auto; font-size:1.05rem; line-height:1.6; }
+  .badge { display:inline-block; font-size:.75rem; letter-spacing:.08em; text-transform:uppercase; color:#0e1a12; background:var(--accent2); border-radius:999px; padding:4px 12px; margin-bottom:16px; font-weight:700; }
+  main { max-width:900px; margin:0 auto; padding:0 20px 64px; }
+  .search { display:flex; gap:8px; margin:8px 0 24px; }
+  .search input { flex:1; padding:14px 16px; border-radius:12px; border:1px solid #2c4634; background:#101d14; color:var(--text); font-size:1rem; }
+  .search button, .samples button { padding:14px 20px; border-radius:12px; border:0; background:var(--accent); color:#0e1a12; font-weight:700; font-size:1rem; cursor:pointer; }
+  .search button:disabled { opacity:.6; cursor:wait; }
+  .samples { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; align-items:center; }
+  .samples span { color:var(--muted); font-size:.9rem; }
+  .samples button { padding:8px 14px; font-size:.85rem; background:#1e3325; color:var(--accent); border:1px solid #2c4634; }
+  .card { background:var(--card); border:1px solid #243b2d; border-radius:16px; padding:24px; margin:16px 0; }
+  .frost-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:16px 0; }
+  .frost-box { background:#101d14; border-radius:12px; padding:20px; text-align:center; border:1px solid #243b2d; }
+  .frost-box .label { font-size:.8rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+  .frost-box .date { font-size:1.6rem; font-weight:800; margin:8px 0 4px; color:var(--accent2); }
+  .frost-box .sub { font-size:.85rem; color:var(--muted); }
+  table { width:100%; border-collapse:collapse; font-size:.92rem; }
+  th, td { text-align:left; padding:10px 8px; border-bottom:1px solid #243b2d; vertical-align:top; }
+  th { color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.06em; }
+  .pill { display:inline-block; font-size:.72rem; padding:2px 10px; border-radius:999px; font-weight:700; }
+  .tender { background:#4a2b2b; color:#ffb3a7; } .hardy { background:#234a2e; color:#9fe8b4; } .half-hardy { background:#4a3f22; color:#ffd166; }
+  .fine { font-size:.8rem; color:var(--muted); line-height:1.6; }
+  .error { background:#3a1d1d; border:1px solid #6b2d2d; color:#ffb3a7; padding:14px 18px; border-radius:12px; }
+  .loader { text-align:center; color:var(--muted); padding:32px; }
+  footer { text-align:center; color:var(--muted); font-size:.82rem; padding:32px 20px; border-top:1px solid #1c2f23; }
+  footer a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <div class="badge">Hacktoberfest · Touch Grass · open-source AI</div>
+  <div><img src="/static/logo.png" alt="Frostwise logo" width="96" height="96" style="border-radius:24px"></div>
+  <h1>Frost<span>wise</span></h1>
+  <p>Hyperlocal frost-date predictions from <strong>TabPFN</strong>, the open-source tabular
+  foundation model — trained on real ERA5 climate history — plus a planting calendar
+  anchored to your first and last frost.</p>
+</header>
+<main>
+  <div class="search">
+    <input id="q" type="text" placeholder="Search a city — e.g. Bengaluru, Chicago, Berlin…" autocomplete="off">
+    <button id="go">Predict frost</button>
+  </div>
+  <div class="samples"><span>Try:</span>
+    <button data-lat="41.8781" data-lon="-87.6298" data-name="Chicago, USA">Chicago</button>
+    <button data-lat="52.52" data-lon="13.405" data-name="Berlin, Germany">Berlin</button>
+    <button data-lat="12.9719" data-lon="77.5937" data-name="Bengaluru, India">Bengaluru</button>
+    <button data-lat="-33.8688" data-lon="151.2093" data-name="Sydney, Australia">Sydney</button>
+    <button data-lat="35.6762" data-lon="139.6503" data-name="Tokyo, Japan">Tokyo</button>
+  </div>
+  <div id="out"></div>
+  <div class="card">
+    <h3 style="margin-top:0">How it works</h3>
+    <p class="fine">
+      1. We pull 20 years of daily minimum temperatures for 80 global locations from the
+      Open-Meteo archive (ERA5 reanalysis, free &amp; open).<br>
+      2. For each location we compute the median first/last frost day-of-year (2005–2024).<br>
+      3. <strong>TabPFN</strong> (open-source, <a href="https://github.com/PriorLabs/TabPFN">PriorLabs/TabPFN</a>)
+      learns the mapping from climate features → frost dates <em>in-context</em> — no gradient training,
+      just real inference at request time.<br>
+      4. Your location's climate fingerprint goes through the same pipeline; the predicted frost
+      dates anchor a rule-based planting calendar for 12 common crops.<br><br>
+      Predictions are statistical estimates from historical climate, not weather forecasts.
+      Microclimates (urban heat, valleys, altitude pockets) can shift real frost by days.
+    </p>
+  </div>
+</main>
+<footer>
+  Frostwise · built for DEV Hacktoberfest Week 1 · TabPFN is open-source (PriorLabs) · weather data: Open-Meteo / ERA5
+</footer>
+<script>
+const out = document.getElementById('out');
+const q = document.getElementById('q');
+const go = document.getElementById('go');
+
+async function runPredict(lat, lon, name) {
+  out.innerHTML = '<div class="loader">Running TabPFN inference on live climate data…</div>';
+  go.disabled = true;
+  try {
+    const r = await fetch(`/api/predict?lat=${lat}&lon=${lon}`);
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    render(d, name);
+  } catch (e) {
+    out.innerHTML = `<div class="error">Prediction failed: ${e.message}. Check the backend is running.</div>`;
+  } finally { go.disabled = false; }
+}
+
+function render(d, name) {
+  let frostHtml;
+  if (d.has_frost) {
+    frostHtml = `<div class="frost-grid">
+      <div class="frost-box"><div class="label">Last spring frost</div><div class="date">${d.last_frost.date}</div><div class="sub">day ${d.last_frost.doy} · plant tender crops after this</div></div>
+      <div class="frost-box"><div class="label">First autumn frost</div><div class="date">${d.first_frost.date}</div><div class="sub">day ${d.first_frost.doy} · harvest tender crops before this</div></div>
+    </div>`;
+  } else {
+    frostHtml = `<div class="frost-box"><div class="label">Frost outlook</div><div class="date">No frost expected</div><div class="sub">frost probability ${(d.frost_probability*100).toFixed(0)}% · year-round growing season</div></div>`;
+  }
+  const rows = d.planting_calendar.map(c =>
+    `<tr><td><strong>${c.crop}</strong></td><td><span class="pill ${c.hardiness}">${c.hardiness}</span></td><td>${c.sow_window}</td><td class="fine">${c.notes}</td></tr>`).join('');
+  out.innerHTML = `
+    <div class="card"><h2 style="margin-top:0">${name}</h2>
+      <p class="fine">TabPFN frost probability: <strong>${(d.frost_probability*100).toFixed(1)}%</strong> ·
+      model trained in-context on ${d.training_locations} locations · ${d.data_source}</p>
+      ${frostHtml}
+      <h3>Planting calendar</h3>
+      <table><tr><th>Crop</th><th>Type</th><th>Sow window</th><th>Notes</th></tr>${rows}</table>
+    </div>`;
+}
+
+go.onclick = async () => {
+  const term = q.value.trim();
+  if (!term) return;
+  go.disabled = true;
+  out.innerHTML = '<div class="loader">Looking up location…</div>';
+  try {
+    const r = await fetch('/api/geocode?q=' + encodeURIComponent(term));
+    const list = await r.json();
+    if (!list.length) throw new Error('no matching place found');
+    const p = list[0];
+    runPredict(p.lat, p.lon, `${p.name}${p.country ? ', ' + p.country : ''}`);
+  } catch (e) { out.innerHTML = `<div class="error">${e.message}</div>`; go.disabled = false; }
+};
+q.addEventListener('keydown', e => { if (e.key === 'Enter') go.onclick(); });
+document.querySelectorAll('.samples button').forEach(b =>
+  b.onclick = () => runPredict(parseFloat(b.dataset.lat), parseFloat(b.dataset.lon), b.dataset.name));
+</script>
+</body>
+</html>
